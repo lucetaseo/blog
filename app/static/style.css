@@ -34,7 +34,8 @@ main { max-width: 920px; margin: 24px auto; padding: 0 16px; }
 .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 16px 0; }
 .grid .wide { grid-column: span 2; }
 label { display: flex; flex-direction: column; gap: 4px; font-size: 14px; font-weight: 600; }
-input, textarea, select { font: inherit; font-weight: 400; padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; }
+input, textarea, select { font: inherit; font-weight: 400; padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; width: 100%; min-width: 0; max-width: 100%; }
+.grid > label { min-width: 0; }
 textarea { resize: vertical; }
 
 button { font: inherit; padding: 9px 16px; border-radius: 6px; border: 1px solid var(--line); background: #fff; cursor: pointer; }

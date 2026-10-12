@@ -236,7 +236,32 @@ function bodyForCopy() {
   return { html: clone.innerHTML, text: blocks.join("\n\n") };
 }
 
+// http://서버IP 처럼 HTTPS가 아닌 주소로 접속하면 브라우저가 클립보드 API를 막는다.
+// 그럴 때는 화면에서 선택 → 복사하는 예전 방식으로 대신한다.
+function legacyCopy(text, html) {
+  const box = document.createElement("div");
+  box.contentEditable = "true";
+  box.style.cssText = "position:fixed;left:-9999px;top:0;white-space:pre-wrap;";
+  if (html) box.innerHTML = html;
+  else box.textContent = text;
+  document.body.appendChild(box);
+  const range = document.createRange();
+  range.selectNodeContents(box);
+  const sel = window.getSelection();
+  sel.removeAllRanges();
+  sel.addRange(range);
+  const ok = document.execCommand("copy");
+  sel.removeAllRanges();
+  box.remove();
+  return ok;
+}
+
 async function copy(text, html) {
+  if (!navigator.clipboard) {
+    if (legacyCopy(text, html)) toast("복사했어요. 스마트에디터에 붙여넣으세요.");
+    else toast("복사에 실패했어요. 직접 드래그해서 복사해 주세요.", true);
+    return;
+  }
   try {
     if (html && window.ClipboardItem) {
       await navigator.clipboard.write([new ClipboardItem({
