@@ -1,6 +1,7 @@
 // 1분마다 도우미 서버에 "발행할 시간이 된 글"이 있는지 묻고, 있으면 알림을 띄운다.
 // 알림을 누르면 네이버 글쓰기 화면을 열고, 에디터 패널에서 바로 채워 넣을 수 있게 글을 준비해 둔다.
-const DEFAULT_ORIGIN = "http://localhost:8000";
+importScripts("config.js");
+const DEFAULT_ORIGIN = NBH_CONFIG.appOrigin || "http://localhost:8000";
 const DEFAULT_WRITE_URL = "https://blog.naver.com/GoBlogWrite.naver";
 
 async function appOrigin() {

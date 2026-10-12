@@ -33,45 +33,67 @@
 > 네이버는 블로그 글쓰기 API를 제공하지 않습니다. 로그인·발행까지 자동으로 하는 방식은 계정 제재 위험이 있어,
 > 발행 직전까지만 돕는 반자동 방식으로 만들었습니다.
 
-## 크롬 확장 프로그램 설치 (담당자 PC마다 1회)
+## 설치 (처음 한 번, 약 5분)
 
-1. 크롬 주소창에 `chrome://extensions` 입력 → 오른쪽 위 **개발자 모드** 켜기
-2. **압축해제된 확장 프로그램을 로드합니다** → 이 저장소의 `extension` 폴더 선택
-3. 도우미 서버가 내 PC의 기본 주소(`http://localhost:8000`)가 아니라면: 툴바의 확장 아이콘을 눌러 설정 화면에서 서버 주소(예: `http://192.168.0.10:8000`)를 저장하고 권한을 허용
-4. 도우미 화면을 새로고침하면 3단계에 "✅ 확장 프로그램 연결됨"이 표시됩니다.
+### 1. 서버 PC에서 실행
+도우미를 켜 둘 PC 한 대(윈도우 또는 맥)에서 이 폴더를 받은 뒤:
 
-확장은 `blog.naver.com`과 등록한 도우미 서버 주소에서만 동작합니다. 네이버 로그인 정보에는 접근하지 않습니다.
+| 윈도우 | 맥 |
+|---|---|
+| **`시작하기.bat`** 더블클릭 | **`시작하기.command`** 더블클릭 (처음엔 *우클릭 → 열기*) |
 
-**스마트에디터 화면 구조가 바뀌어 자동 채우기가 안 되면** 패널의 복사 버튼으로 붙여넣으면 되고,
-`extension/editor.js` 위쪽의 `TITLE_SELECTORS` / `BODY_SELECTORS`만 고치면 다시 동작합니다.
+처음 실행하면 파이썬과 필요한 프로그램을 자동으로 설치하고(1~3분), 브라우저에서 도우미가 열립니다.
+다음부터는 같은 파일을 누르면 바로 켜집니다. 검은 창을 닫으면 도우미가 꺼집니다.
 
-## 설치 및 실행
+> 파이썬 자동 설치가 안 되는 PC(winget/Homebrew 없음)는 python.org 다운로드 페이지가 열립니다.
+> 설치 후 같은 파일을 다시 실행하세요. 윈도우는 설치 첫 화면에서 **Add python.exe to PATH**를 체크하세요.
 
-Python 3.10 이상이 필요합니다.
+### 2. 설정 화면에서 AI 연결
+처음 열리면 **설정** 화면이 나옵니다.
+[Claude 콘솔](https://console.anthropic.com/settings/keys)에서 API 키를 만들어 붙여넣고 **저장하고 확인**을 누르면 끝입니다.
+키가 맞는지 바로 확인해 주고, 블로그명·업종·말투 기본값도 여기서 정합니다.
+
+> 설정(특히 API 키)은 **서버 PC에서만** 바꿀 수 있습니다. 다른 PC·휴대폰에서는 보기만 됩니다.
+
+### 3. 다른 PC·휴대폰에서 접속
+설정 화면의 **다른 PC·휴대폰에서 쓰기**에 나오는 주소(예: `http://192.168.0.10:8000`)로 들어오면 됩니다.
+휴대폰은 QR 코드를 찍고 **홈 화면에 추가**하면 앱처럼 쓸 수 있습니다. 같은 와이파이/사내망에서만 접속됩니다.
+
+### 4. 크롬 확장 프로그램 (PC마다, 선택)
+에디터 자동 채우기와 발행 알림을 쓰려면 각 PC에서:
+1. 도우미의 **설정 → 크롬 확장 프로그램 → 받기**로 설치 파일을 받아 압축을 풉니다. (서버 주소가 이미 들어 있습니다)
+2. 크롬 주소창에 `chrome://extensions` → 오른쪽 위 **개발자 모드** 켜기
+3. **압축해제된 확장 프로그램을 로드합니다** → 압축 푼 `블로그도우미_확장프로그램` 폴더 선택
+
+확장은 `blog.naver.com`과 도우미 서버 주소에서만 동작하며 네이버 로그인 정보에는 접근하지 않습니다.
+스마트에디터 구조가 바뀌어 자동 채우기가 안 되면 패널의 복사 버튼을 쓰고,
+`extension/editor.js` 위쪽의 `TITLE_SELECTORS` / `BODY_SELECTORS`를 고치면 됩니다.
+
+### 5. PC 켤 때 자동 실행 (선택)
+**`자동실행_설정.bat`**(윈도우) / **`자동실행_설정.command`**(맥)를 실행하면 PC를 켤 때 도우미가 자동으로 켜집니다.
+다시 실행하면 해제됩니다. 맥은 폴더를 데스크탑·문서·다운로드가 아닌 홈 폴더에 두는 것을 권장합니다.
+
+### 개발자용 수동 실행
 
 ```bash
-python -m venv .venv
-source .venv/bin/activate        # Windows: .venv\Scripts\activate
+python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
-
-cp .env.example .env             # Windows: copy .env.example .env
-# .env 파일을 열어 ANTHROPIC_API_KEY 를 입력
-
 python -m app.main
 ```
 
-브라우저에서 `http://localhost:8000` (다른 PC에서는 `http://<서버IP>:8000`)으로 접속합니다.
+### 고급 설정 (`.env`, 선택)
 
-### 설정 (`.env`)
+보통은 설정 화면으로 충분합니다. `.env`에 값을 넣으면 설정 화면 값보다 우선합니다.
 
 | 항목 | 설명 |
 |---|---|
-| `ANTHROPIC_API_KEY` | Claude API 키 (필수) |
+| `ANTHROPIC_API_KEY` | Claude API 키 (설정 화면 대신 지정할 때) |
 | `BLOG_MODEL` | 사용할 모델. 기본 `claude-opus-5-5` |
 | `BLOG_NAME`, `BLOG_INDUSTRY`, `BLOG_TONE` | 화면 입력칸의 기본값 |
 | `BLOG_WRITE_URL` | "네이버 에디터로 보내기"가 여는 주소. 기본은 로그인한 계정의 글쓰기 화면 |
 | `HOST`, `PORT` | 서버 주소/포트. 기본 `0.0.0.0:8000` |
-| `BLOG_DATA_DIR` | 보관함(DB, 사진) 저장 폴더. 기본 `data/` — 백업은 이 폴더를 복사하면 됩니다 |
+| `BLOG_DATA_DIR` | 보관함·설정 저장 폴더. 기본 `data/` — 백업은 이 폴더를 복사하면 됩니다 |
+| `BLOG_ADMIN_PASSWORD` | 클라우드 등 프록시 뒤에서 운영할 때, 설정 화면을 이 비밀번호로 열기 |
 
 ## 구조
 
@@ -81,9 +103,13 @@ app/
   writer.py    Claude 호출 — 주제 추천 / 글 작성 프롬프트와 응답 형식(JSON 스키마)
   images.py    사진 회전 보정·축소·JPEG 변환
   store.py     글 보관함 (SQLite + 사진 파일)
+  settings.py  설정 화면 값 저장 (data/settings.json)
+  setup.py     API 키 확인, 접속 주소·QR, 확장 설치 파일 만들기
   static/      화면 (index.html, app.js, zip.js, style.css)
 extension/     크롬 확장 프로그램 — 에디터 채워 넣기, 발행 시각 알림
 tests/         테스트 (Claude 호출은 가짜 클라이언트로 대체)
+시작하기.bat / 시작하기.command        원클릭 설치·실행 (윈도우 / 맥)
+자동실행_설정.bat / 자동실행_설정.command  PC 켤 때 자동 실행 켜기/끄기
 ```
 
 - 글의 톤이나 규칙을 바꾸려면 `app/writer.py`의 `SYSTEM_PROMPT`를 수정하세요.

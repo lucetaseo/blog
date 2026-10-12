@@ -104,3 +104,21 @@ button:disabled { opacity: .5; cursor: not-allowed; }
   .grid .wide { grid-column: auto; }
   .card { padding: 16px; }
 }
+
+/* 설정 */
+.welcome { background: #f0fbf5; border: 1px solid #bfeccf; border-radius: 8px; padding: 12px 14px; margin-bottom: 16px; }
+.setting-block { border-top: 1px solid var(--line); padding: 16px 0 8px; }
+.setting-block h3 { font-size: 16px; margin: 0 0 8px; }
+.setting-block h3 small { font-weight: 400; margin-left: 6px; }
+.inline { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.inline input { flex: 1; min-width: 200px; width: auto; }
+.lan { display: flex; flex-wrap: wrap; gap: 16px; }
+.lan .addr { text-align: center; font-size: 14px; }
+.lan .addr img { width: 160px; height: 160px; display: block; margin: 0 auto 6px; border: 1px solid var(--line); border-radius: 8px; }
+.howto { padding-left: 20px; font-size: 14px; line-height: 1.8; margin: 4px 0 12px; }
+code { background: #eef0f3; padding: 1px 5px; border-radius: 4px; font-size: 13px; }
+.badge.ok { background: #e6f8ee; color: var(--green-dark); }
+.badge.no { background: #fdecea; color: #c62828; }
+a.btn { display: inline-block; padding: 9px 14px; border: 1px solid var(--line); border-radius: 6px; color: var(--text); text-decoration: none; background: #fff; font-size: 14px; }
+a.btn:hover { border-color: var(--green); }
+a.btn small { color: var(--muted); margin-left: 4px; }

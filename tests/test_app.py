@@ -11,6 +11,7 @@ from app import main
 from datetime import datetime, timedelta, timezone
 
 from app.images import ImageError, prepare_image
+from app.settings import Settings
 from app.store import PostStore
 from app.writer import BlogWriter
 
@@ -71,6 +72,7 @@ def client(monkeypatch, tmp_path):
     fake = FakeClient()
     monkeypatch.setattr(main, "_writer", BlogWriter(client=fake))
     monkeypatch.setattr(main, "_store", PostStore(tmp_path))
+    monkeypatch.setattr(main, "_settings", Settings(tmp_path))
     return TestClient(main.app), fake
 
 
@@ -179,3 +181,81 @@ def test_rejects_naive_schedule_time(client):
     data = {"title": "t", "body_html": "", "paste_html": "", "paste_text": "", "scheduled_at": "2026-10-20T09:00"}
     r = tc.post("/api/posts", data={"data": json.dumps(data)})
     assert r.status_code == 400
+
+
+# ---------- 설정 ----------
+
+@pytest.fixture
+def setup_env(monkeypatch, tmp_path):
+    for name in ("ANTHROPIC_API_KEY", "BLOG_NAME", "BLOG_ADMIN_PASSWORD"):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setattr(main, "_settings", Settings(tmp_path))
+    monkeypatch.setattr(main, "_writer", None)
+    checked = []
+    monkeypatch.setattr(main.setup_helpers, "check_api_key", lambda k: checked.append(k) or (None if k == "sk-ant-good" else "틀린 키"))
+    local = TestClient(main.app, client=("127.0.0.1", 5000))
+    remote = TestClient(main.app, client=("192.168.0.23", 5000))
+    return local, remote, checked
+
+
+def test_first_run_needs_key(setup_env):
+    local, _, _ = setup_env
+    assert local.get("/api/defaults").json()["configured"] is False
+    r = local.post("/api/topics", files=[("photos", ("1.png", jpeg_bytes(), "image/png"))])
+    assert r.status_code == 502 and "API 키" in r.json()["detail"]
+
+
+def test_setup_saves_and_validates_key_locally(setup_env, tmp_path):
+    local, _, checked = setup_env
+    assert local.post("/api/setup", json={"api_key": "sk-ant-bad"}).status_code == 400
+    r = local.post("/api/setup", json={"api_key": "sk-ant-good", "blog_name": "OO카페"})
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["configured"] and "sk-ant-good" not in json.dumps(body)
+    assert checked == ["sk-ant-bad", "sk-ant-good"]
+    assert local.get("/api/defaults").json()["blog_name"] == "OO카페"
+    assert json.loads((tmp_path / "settings.json").read_text())["anthropic_api_key"] == "sk-ant-good"
+
+
+def test_setup_locked_from_other_pcs(setup_env):
+    _, remote, _ = setup_env
+    assert remote.get("/api/setup").json()["can_edit"] is False
+    assert remote.post("/api/setup", json={"blog_name": "x"}).status_code == 403
+    # 프록시 뒤(클라우드)라면 로컬 주소로 보여도 막는다
+    local, _, _ = setup_env
+    assert local.post("/api/setup", json={"blog_name": "x"}, headers={"X-Forwarded-For": "1.2.3.4"}).status_code == 403
+
+
+def test_setup_admin_password(setup_env, monkeypatch):
+    _, remote, _ = setup_env
+    monkeypatch.setenv("BLOG_ADMIN_PASSWORD", "pw")
+    assert remote.post("/api/setup", json={"blog_name": "x"}).status_code == 403
+    assert remote.post("/api/setup", json={"blog_name": "x"}, headers={"X-Admin-Password": "pw"}).status_code == 200
+
+
+def test_env_overrides_settings_file(setup_env, monkeypatch):
+    local, _, _ = setup_env
+    local.post("/api/setup", json={"blog_name": "파일값"})
+    monkeypatch.setenv("BLOG_NAME", "환경변수값")
+    assert local.get("/api/defaults").json()["blog_name"] == "환경변수값"
+
+
+def test_extension_zip_has_server_address(setup_env):
+    local, _, _ = setup_env
+    r = local.get("/api/setup/extension.zip", params={"origin": "http://192.168.0.10:8000"})
+    assert r.status_code == 200
+    z = zipfile.ZipFile(io.BytesIO(r.content))
+    root = "블로그도우미_확장프로그램/"
+    assert '"http://192.168.0.10:8000"' in z.read(root + "config.js").decode()
+    manifest = json.loads(z.read(root + "manifest.json"))
+    assert "http://192.168.0.10/*" in manifest["host_permissions"]
+    bridge = next(cs for cs in manifest["content_scripts"] if "bridge.js" in cs["js"])
+    assert "http://192.168.0.10/*" in bridge["matches"]
+    assert local.get("/api/setup/extension.zip", params={"origin": "javascript:alert(1)"}).status_code == 400
+
+
+def test_qr_only_for_own_addresses(setup_env, monkeypatch):
+    local, _, _ = setup_env
+    monkeypatch.setattr(main.setup_helpers, "lan_urls", lambda port: ["http://192.168.0.10:8000"])
+    assert local.get("/api/setup/qr.svg", params={"url": "http://192.168.0.10:8000"}).headers["content-type"].startswith("image/svg")
+    assert local.get("/api/setup/qr.svg", params={"url": "https://evil.example"}).status_code == 400

@@ -12,6 +12,7 @@
     <nav class="tabs">
       <button data-tab="write" class="active">글 쓰기</button>
       <button data-tab="archive">글 보관함</button>
+      <button data-tab="settings">설정</button>
     </nav>
     <ol class="steps">
       <li data-step="1" class="active">사진 올리기</li>
@@ -118,6 +119,59 @@
       </div>
       <p class="hint">발행 예정 시각이 되면 크롬 확장 프로그램이 알림을 띄웁니다. 발행한 글은 "발행 완료로 표시"를 눌러 주세요.</p>
       <div id="archiveList"></div>
+    </section>
+    <!-- 설정 -->
+    <section id="settings" class="card hidden">
+      <h2>설정</h2>
+      <div id="welcome" class="welcome hidden">
+        <b>👋 처음 오셨네요!</b> 아래 <b>1번 AI 연결</b>만 하면 바로 쓸 수 있어요. 나머지는 나중에 해도 됩니다.
+      </div>
+
+      <div class="setting-block">
+        <h3>1. AI 연결 <span id="keyBadge" class="badge"></span></h3>
+        <div id="keyEditor">
+          <p class="hint">
+            <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">Claude 콘솔</a>에서
+            로그인 → <b>Create Key</b> → 만들어진 키(<code>sk-ant-</code>로 시작)를 복사해 붙여넣으세요.
+            결제 수단 등록이 필요할 수 있습니다.
+          </p>
+          <div class="inline">
+            <input id="apiKey" type="password" placeholder="sk-ant-..." autocomplete="off">
+            <button id="saveKey" class="primary">저장하고 확인</button>
+          </div>
+        </div>
+        <p id="keyLocked" class="hint hidden"></p>
+        <label id="adminPwRow" class="hidden">관리자 비밀번호<input id="adminPw" type="password" autocomplete="off"></label>
+      </div>
+
+      <div class="setting-block">
+        <h3>2. 블로그 기본 정보 <small class="hint">매번 입력하지 않도록 기본값으로 채워집니다</small></h3>
+        <div class="grid">
+          <label>블로그/업체명<input id="set_blog_name"></label>
+          <label>업종/분야<input id="set_industry"></label>
+          <label class="wide">말투<input id="set_tone" placeholder="예: 친근한 ~해요체"></label>
+          <label class="wide">네이버 글쓰기 주소 <small class="hint">보통은 그대로 두세요</small><input id="set_write_url"></label>
+        </div>
+        <button id="saveProfile">기본 정보 저장</button>
+      </div>
+
+      <div class="setting-block">
+        <h3>3. 다른 PC·휴대폰에서 쓰기</h3>
+        <p class="hint">같은 와이파이(사내망)에 연결된 기기에서 아래 주소로 들어오면 됩니다.
+          휴대폰은 카메라로 QR을 찍고, 열린 화면에서 <b>홈 화면에 추가</b>하면 앱처럼 쓸 수 있어요.</p>
+        <div id="lanList" class="lan"></div>
+      </div>
+
+      <div class="setting-block">
+        <h3>4. 크롬 확장 프로그램 <small class="hint">PC 전용 · 에디터 자동 채우기와 발행 알림</small></h3>
+        <ol class="howto">
+          <li>아래 버튼으로 설치 파일을 받아 <b>압축을 풉니다</b>.</li>
+          <li>크롬 주소창에 <code>chrome://extensions</code> 입력 → 오른쪽 위 <b>개발자 모드</b> 켜기</li>
+          <li><b>압축해제된 확장 프로그램을 로드합니다</b> → 압축 푼 <b>블로그도우미_확장프로그램</b> 폴더 선택</li>
+        </ol>
+        <div id="extButtons" class="inline"></div>
+        <p class="hint">서버 주소가 이미 들어 있어서 따로 설정할 필요가 없습니다.</p>
+      </div>
     </section>
   </main>
 

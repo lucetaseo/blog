@@ -452,6 +452,7 @@ $("markDone").onclick = async () => {
 function showTab(name) {
   $("writeView").classList.toggle("hidden", name !== "write");
   $("archive").classList.toggle("hidden", name !== "archive");
+  $("settings").classList.toggle("hidden", name !== "settings");
   document.querySelectorAll(".tabs button").forEach((b) => b.classList.toggle("active", b.dataset.tab === name));
   document.querySelector(".steps").classList.toggle("hidden", name !== "write");
 }
@@ -534,7 +535,11 @@ async function openSaved(id) {
 }
 
 document.querySelectorAll(".tabs button").forEach((b) => {
-  b.onclick = () => (b.dataset.tab === "archive" ? openArchive() : showStep(state.post || state.savedId ? 3 : 1));
+  b.onclick = () => {
+    if (b.dataset.tab === "archive") openArchive();
+    else if (b.dataset.tab === "settings") openSettings();
+    else showStep(state.post || state.savedId ? 3 : 1);
+  };
 });
 $("newPost").onclick = () => {
   state.post = null;
@@ -551,7 +556,94 @@ const params = new URLSearchParams(location.search);
 if (params.get("post")) openSaved(params.get("post"));
 else if (params.get("view") === "archive") openArchive();
 updateExtStatus();
-api("/api/defaults").then((d) => {
+function applyDefaults(d) {
   if (d.write_url) state.writeUrl = d.write_url;
   for (const k of ["blog_name", "industry", "tone"]) if (d[k] && !$(k).value) $(k).value = d[k];
+}
+
+api("/api/defaults").then((d) => {
+  applyDefaults(d);
+  // 처음 실행이면 설정 화면부터 보여 준다.
+  if (!d.configured && !params.get("post")) openSettings(true);
 }).catch(() => {});
+
+// ---------- 설정 ----------
+function adminHeaders() {
+  const pw = $("adminPw").value;
+  return pw ? { "X-Admin-Password": pw } : {};
+}
+
+async function openSettings(firstRun = false) {
+  showTab("settings");
+  $("welcome").classList.toggle("hidden", !firstRun);
+  try {
+    renderSettings(await api("/api/setup", { headers: adminHeaders() }));
+  } catch (err) {
+    toast(err.message, true);
+  }
+}
+
+function renderSettings(st) {
+  const badge = $("keyBadge");
+  badge.textContent = st.configured ? `연결됨 · ${st.key_masked}` : "연결 안 됨";
+  badge.className = "badge " + (st.configured ? "ok" : "no");
+
+  const locked = !st.can_edit && !st.needs_password;
+  $("adminPwRow").classList.toggle("hidden", !st.needs_password);
+  $("keyEditor").classList.toggle("hidden", locked || st.key_from_env);
+  $("keyLocked").classList.toggle("hidden", !(locked || st.key_from_env));
+  $("keyLocked").textContent = st.key_from_env
+    ? "API 키가 서버의 .env 파일로 지정되어 있습니다. 바꾸려면 .env를 수정하세요."
+    : "AI 연결과 기본 정보는 도우미를 실행한 PC에서만 바꿀 수 있어요. (그 PC에서 http://localhost:8000 접속)";
+  $("saveProfile").disabled = locked;
+
+  for (const k of ["blog_name", "industry", "tone", "write_url"]) $("set_" + k).value = st[k] || "";
+
+  $("lanList").innerHTML = st.lan_urls.length
+    ? st.lan_urls.map((u) => `<div class="addr"><img src="/api/setup/qr.svg?url=${encodeURIComponent(u)}" alt="QR"><code>${esc(u)}</code></div>`).join("")
+    : `<p class="hint">이 PC의 네트워크 주소를 찾지 못했어요. 와이파이/랜 연결을 확인하세요.</p>`;
+
+  // 확장 설치 파일: 지금 접속한 주소 + 사내망 주소
+  const origins = [...new Set([location.origin, ...st.lan_urls])];
+  $("extButtons").innerHTML = origins.map((o) => {
+    const local = /^https?:\/\/(localhost|127\.)/.test(o);
+    return `<a class="btn" href="/api/setup/extension.zip?origin=${encodeURIComponent(o)}">⬇ ${local ? "이 PC용" : "직원 PC용"} 받기 <small>${esc(o)}</small></a>`;
+  }).join("");
+}
+
+async function saveSettings(body, okMsg) {
+  try {
+    loading(true, "확인하는 중…");
+    const st = await api("/api/setup", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...adminHeaders() },
+      body: JSON.stringify(body),
+    });
+    renderSettings(st);
+    applyDefaults(st);
+    toast(okMsg);
+    return st;
+  } catch (err) {
+    toast(err.message, true);
+    return null;
+  } finally {
+    loading(false);
+  }
+}
+
+$("saveKey").onclick = async () => {
+  const key = $("apiKey").value.trim();
+  if (!key) return toast("API 키를 붙여넣어 주세요.", true);
+  const st = await saveSettings({ api_key: key }, "AI 연결 완료! 이제 글을 쓸 수 있어요.");
+  if (st) {
+    $("apiKey").value = "";
+    if (!$("welcome").classList.contains("hidden")) setTimeout(() => showStep(1), 1200);
+  }
+};
+
+$("saveProfile").onclick = () => saveSettings({
+  blog_name: $("set_blog_name").value,
+  industry: $("set_industry").value,
+  tone: $("set_tone").value,
+  write_url: $("set_write_url").value,
+}, "기본 정보를 저장했어요.");
