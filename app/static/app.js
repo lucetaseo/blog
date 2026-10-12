@@ -7,6 +7,9 @@ const state = {
   topics: [],
   selected: -1,
   post: null,
+  photoOrder: [],   // 글에 배치된 순서대로의 사진 번호
+  writeUrl: "https://blog.naver.com/GoBlogWrite.naver",
+  extReady: false,  // 크롬 확장 프로그램 설치 여부
 };
 
 // ---------- 공통 ----------
@@ -189,6 +192,7 @@ function renderPost() {
 
   // 글에 배치되지 않은 사진도 순서 목록 끝에 보여준다.
   state.files.forEach((_, i) => { if (!order.includes(i + 1)) order.push(i + 1); });
+  state.photoOrder = order;
   $("photoOrder").innerHTML = order.map((n) =>
     `<div class="thumb"><img src="${state.files[n - 1].url}" alt=""><span class="num">사진 ${n}</span></div>`).join("");
 }
@@ -240,7 +244,76 @@ $("downloadTxt").onclick = () => {
 };
 $("btnBack2").onclick = () => showStep(2);
 
+// 스마트에디터에 한 번에 올리기 좋게 "01_사진3.jpg" 식으로 번호를 붙인다.
+$("downloadZip").onclick = async () => {
+  try {
+    const entries = await Promise.all(state.photoOrder.map(async (n, i) => {
+      const file = state.files[n - 1].file;
+      const ext = (file.name.match(/\.[^.]+$/) || [".jpg"])[0];
+      return {
+        name: `${String(i + 1).padStart(2, "0")}_사진${n}${ext}`,
+        data: new Uint8Array(await file.arrayBuffer()),
+      };
+    }));
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(makeZip(entries));
+    a.download = "블로그사진.zip";
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+  } catch {
+    toast("사진을 묶지 못했어요. 다시 시도해 주세요.", true);
+  }
+};
+
+// ---------- 네이버 에디터로 보내기 ----------
+// 크롬 확장 프로그램(extension/)이 설치돼 있으면 글을 확장에 넘기고,
+// 에디터에서 확장의 "채워 넣기" 버튼으로 제목·본문을 넣는다.
+function updateExtStatus() {
+  $("extStatus").textContent = state.extReady
+    ? "✅ 확장 프로그램 연결됨 — 에디터에서 '채워 넣기'를 누르세요."
+    : "확장 프로그램이 없으면 본문을 복사해 둔 뒤 에디터를 엽니다. (Ctrl+V로 붙여넣기)";
+}
+
+window.addEventListener("message", (e) => {
+  if (e.source !== window || e.data?.source !== "nbh-ext") return;
+  if (e.data.type === "ready") { state.extReady = true; updateExtStatus(); }
+});
+window.postMessage({ source: "nbh-app", type: "ping" }, location.origin);
+
+function waitForSaved(timeoutMs = 2000) {
+  return new Promise((resolve) => {
+    const onMsg = (e) => {
+      if (e.source === window && e.data?.source === "nbh-ext" && e.data.type === "saved") done(true);
+    };
+    const done = (ok) => { window.removeEventListener("message", onMsg); clearTimeout(t); resolve(ok); };
+    const t = setTimeout(() => done(false), timeoutMs);
+    window.addEventListener("message", onMsg);
+  });
+}
+
+$("sendToEditor").onclick = async () => {
+  const b = bodyForCopy();
+  const post = {
+    title: $("postTitle").value,
+    html: b.html,
+    text: b.text,
+    tags: state.post.hashtags.map((t) => t.replace(/^#/, "").replace(/\s+/g, "")),
+  };
+  // 클립보드 쓰기는 이 창에 포커스가 있을 때만 되므로, 복사/전달을 먼저 하고 에디터를 연다.
+  let ok = false;
+  if (state.extReady) {
+    const saved = waitForSaved();
+    window.postMessage({ source: "nbh-app", type: "post", post }, location.origin);
+    ok = await saved;
+  }
+  if (ok) toast("확장 프로그램에 글을 넘겼어요. 에디터에서 '채워 넣기'를 누르세요.");
+  else await copy(b.text, b.html);
+  window.open(state.writeUrl, "_blank");
+};
+
 // ---------- 초기값 ----------
+updateExtStatus();
 api("/api/defaults").then((d) => {
+  if (d.write_url) state.writeUrl = d.write_url;
   for (const k of ["blog_name", "industry", "tone"]) if (d[k] && !$(k).value) $(k).value = d[k];
 }).catch(() => {});

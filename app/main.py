@@ -81,6 +81,7 @@ def defaults():
         "blog_name": os.getenv("BLOG_NAME", ""),
         "industry": os.getenv("BLOG_INDUSTRY", ""),
         "tone": os.getenv("BLOG_TONE", ""),
+        "write_url": os.getenv("BLOG_WRITE_URL", "https://blog.naver.com/GoBlogWrite.naver"),
     }
 
 

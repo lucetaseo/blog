@@ -1,0 +1,25 @@
+{
+  "manifest_version": 3,
+  "name": "네이버 블로그 글쓰기 도우미",
+  "version": "1.0.0",
+  "description": "사내 글쓰기 도우미에서 만든 글을 네이버 블로그 에디터에 채워 넣습니다. 발행은 직접 누릅니다.",
+  "permissions": ["storage", "scripting"],
+  "host_permissions": ["https://blog.naver.com/*"],
+  "optional_host_permissions": ["http://*/*", "https://*/*"],
+  "options_ui": { "page": "options.html", "open_in_tab": true },
+  "action": { "default_title": "블로그 글쓰기 도우미 설정" },
+  "background": { "service_worker": "background.js" },
+  "content_scripts": [
+    {
+      "matches": ["http://localhost/*", "http://127.0.0.1/*"],
+      "js": ["bridge.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://blog.naver.com/*"],
+      "js": ["editor.js"],
+      "all_frames": true,
+      "run_at": "document_idle"
+    }
+  ]
+}

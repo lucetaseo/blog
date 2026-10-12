@@ -69,7 +69,12 @@
         <button id="copyBody" class="primary">본문 복사 (서식 포함)</button>
         <button id="copyTags">해시태그 복사</button>
         <button id="downloadTxt">텍스트 파일 저장</button>
+        <button id="downloadZip">사진 순서대로 받기 (ZIP)</button>
         <button id="btnBack2">← 다른 주제 고르기</button>
+      </div>
+      <div class="publish">
+        <button id="sendToEditor" class="primary">네이버 에디터로 보내기 ↗</button>
+        <span id="extStatus" class="hint"></span>
       </div>
       <div id="checklist" class="checklist hidden"></div>
       <input id="postTitle" class="post-title">
@@ -86,6 +91,7 @@
   <div id="loading" class="loading hidden"><div class="spinner"></div><p id="loadingText">작업 중…</p></div>
   <div id="toast" class="toast hidden"></div>
 
+  <script src="/static/zip.js"></script>
   <script src="/static/app.js"></script>
 </body>
 </html>
