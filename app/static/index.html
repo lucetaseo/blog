@@ -30,6 +30,15 @@
       <div class="grid">
         <label>블로그/업체명<input id="blog_name" placeholder="예: 연남동 OO카페"></label>
         <label>업종/분야<input id="industry" placeholder="예: 카페, 인테리어, 병원"></label>
+        <label class="wide">글 유형
+          <select id="post_type">
+            <option value="자동">자동 — 사진 보고 골라 주기 (정보성 주제 1개 이상 포함)</option>
+            <option value="정보성">정보성 — 고르는 법, 관리 방법, 비용, 주의사항 등 노하우</option>
+            <option value="업체 소개·후기">업체 소개·후기 — 매장·메뉴·서비스 소개</option>
+            <option value="작업·시공 사례">작업·시공 사례 — 의뢰 배경 → 과정 → 결과</option>
+            <option value="이벤트·공지">이벤트·공지 — 신메뉴, 이벤트, 휴무 안내</option>
+          </select>
+        </label>
         <label class="wide">말투<input id="tone" placeholder="예: 친근한 ~해요체, 전문적인 ~습니다체"></label>
         <label class="wide">꼭 넣을 키워드 (쉼표로 구분)<input id="keywords" placeholder="예: 연남동카페, 브런치맛집"></label>
         <label class="wide">메모 (사진에 없는 사실 정보 — 가격, 이벤트, 위치 등)

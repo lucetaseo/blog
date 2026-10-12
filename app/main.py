@@ -93,6 +93,7 @@ def suggest_topics(
     tone: str = Form(""),
     memo: str = Form(""),
     keywords: str = Form(""),
+    post_type: str = Form("자동"),
 ):
     if not photos:
         raise HTTPException(400, "사진을 1장 이상 올려 주세요.")
@@ -117,7 +118,7 @@ def suggest_topics(
         keywords=_split_keywords(keywords),
     )
     try:
-        result = get_writer().suggest_topics(images, profile)
+        result = get_writer().suggest_topics(images, profile, post_type=post_type)
     except WriterError as e:
         raise HTTPException(502, str(e)) from e
 

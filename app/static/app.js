@@ -96,7 +96,7 @@ dz.addEventListener("drop", (e) => { e.preventDefault(); dz.classList.remove("ov
 $("btnTopics").onclick = async () => {
   const fd = new FormData();
   state.files.forEach((f) => fd.append("photos", f.file, f.file.name));
-  for (const k of ["blog_name", "industry", "tone", "keywords", "memo"]) fd.append(k, $(k).value);
+  for (const k of ["blog_name", "industry", "tone", "keywords", "memo", "post_type"]) fd.append(k, $(k).value);
   try {
     loading(true, "사진을 살펴보고 주제를 고르는 중… (30초~1분)");
     const data = await api("/api/topics", { method: "POST", body: fd });
@@ -121,6 +121,7 @@ function renderTopics(notes) {
     const el = document.createElement("div");
     el.className = "topic";
     el.innerHTML = `
+      <span class="type">${esc(t.post_type)}</span>
       <h3>${i === 0 ? "⭐ " : ""}${esc(t.title)}</h3>
       <p>${esc(t.angle)}</p>
       <p class="hint">대상: ${esc(t.target_reader)} · 추천 이유: ${esc(t.reason)}</p>

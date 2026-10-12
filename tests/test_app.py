@@ -13,7 +13,7 @@ from app.writer import BlogWriter
 TOPICS = {
     "photo_notes": [{"photo": 1, "description": "라떼"}, {"photo": 2, "description": "창가 좌석"}],
     "topics": [{
-        "title": "연남동 감성 카페", "angle": "공간 소개", "target_reader": "20대",
+        "title": "연남동 감성 카페", "post_type": "정보성", "angle": "공간 소개", "target_reader": "20대",
         "main_keyword": "연남동카페", "sub_keywords": ["라떼"], "reason": "사진이 공간 위주",
     }],
 }
@@ -83,7 +83,8 @@ def test_prepare_image_rejects_non_image():
 def test_topics_then_post_flow(client):
     tc, fake = client
     files = [("photos", ("1.png", jpeg_bytes(), "image/png")), ("photos", ("2.png", jpeg_bytes(), "image/png"))]
-    r = tc.post("/api/topics", files=files, data={"blog_name": "OO카페", "keywords": "연남동, 라떼"})
+    r = tc.post("/api/topics", files=files,
+                data={"blog_name": "OO카페", "keywords": "연남동, 라떼", "post_type": "정보성"})
     assert r.status_code == 200, r.text
     body = r.json()
     assert body["topics"][0]["main_keyword"] == "연남동카페"
@@ -92,12 +93,22 @@ def test_topics_then_post_flow(client):
     assert sent["fallbacks"] == "default"
     images = [b for b in sent["messages"][0]["content"] if b["type"] == "image"]
     assert len(images) == 2
-    assert "연남동, 라떼" in sent["messages"][0]["content"][-1]["text"]
+    prompt = sent["messages"][0]["content"][-1]["text"]
+    assert "연남동, 라떼" in prompt
+    assert "글 유형은 '정보성'입니다" in prompt
 
     r = tc.post("/api/post", json={"session_id": body["session_id"], "topic": body["topics"][0]})
     assert r.status_code == 200, r.text
     # 존재하지 않는 사진 번호(9)는 걸러진다
     assert r.json()["sections"][0]["photos"] == [1]
+    assert "글 유형: 정보성" in fake.calls[1]["messages"][0]["content"][-1]["text"]
+
+
+def test_auto_type_asks_for_info_topic(client):
+    tc, fake = client
+    r = tc.post("/api/topics", files=[("photos", ("1.png", jpeg_bytes(), "image/png"))])
+    assert r.status_code == 200, r.text
+    assert "정보성 주제를 1개 이상" in fake.calls[0]["messages"][0]["content"][-1]["text"]
 
 
 def test_post_with_unknown_session(client):
