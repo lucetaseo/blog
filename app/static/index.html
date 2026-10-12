@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>블로그 글쓰기 도우미</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header>
+    <h1>네이버 블로그 글쓰기 도우미</h1>
+    <ol class="steps">
+      <li data-step="1" class="active">사진 올리기</li>
+      <li data-step="2">주제 선택</li>
+      <li data-step="3">글 확인·복사</li>
+    </ol>
+  </header>
+
+  <main>
+    <!-- 1단계: 사진 + 기본 정보 -->
+    <section id="step1" class="card">
+      <h2>1. 사진과 기본 정보</h2>
+      <label class="dropzone" id="dropzone">
+        <input type="file" id="photos" accept="image/*" multiple hidden>
+        <span>여기를 눌러 사진을 고르거나, 사진을 끌어다 놓으세요 (최대 20장)</span>
+      </label>
+      <p class="hint">사진 순서 = 글 속 사진 번호입니다. 썸네일을 끌어서 순서를 바꿀 수 있어요.</p>
+      <div id="previews" class="thumbs"></div>
+
+      <div class="grid">
+        <label>블로그/업체명<input id="blog_name" placeholder="예: 연남동 OO카페"></label>
+        <label>업종/분야<input id="industry" placeholder="예: 카페, 인테리어, 병원"></label>
+        <label class="wide">말투<input id="tone" placeholder="예: 친근한 ~해요체, 전문적인 ~습니다체"></label>
+        <label class="wide">꼭 넣을 키워드 (쉼표로 구분)<input id="keywords" placeholder="예: 연남동카페, 브런치맛집"></label>
+        <label class="wide">메모 (사진에 없는 사실 정보 — 가격, 이벤트, 위치 등)
+          <textarea id="memo" rows="3" placeholder="예: 10월 신메뉴 출시, 아메리카노 4,500원, 주차 2대 가능"></textarea>
+        </label>
+      </div>
+      <button id="btnTopics" class="primary" disabled>주제 추천받기</button>
+    </section>
+
+    <!-- 2단계: 주제 선택 -->
+    <section id="step2" class="card hidden">
+      <h2>2. 주제 선택</h2>
+      <details class="notes">
+        <summary>AI가 본 사진 내용</summary>
+        <ul id="photoNotes"></ul>
+      </details>
+      <div id="topics" class="topics"></div>
+      <div class="row">
+        <label>분량
+          <select id="length">
+            <option>짧게 (공백 포함 약 800~1,200자)</option>
+            <option selected>보통 (공백 포함 약 1,500~2,000자)</option>
+            <option>길게 (공백 포함 약 2,500~3,500자)</option>
+          </select>
+        </label>
+        <button id="btnBack1">← 사진 다시 고르기</button>
+        <button id="btnPost" class="primary" disabled>이 주제로 글 쓰기</button>
+      </div>
+    </section>
+
+    <!-- 3단계: 결과 -->
+    <section id="step3" class="card hidden">
+      <h2>3. 글 확인·복사</h2>
+      <p class="hint">본문은 바로 고칠 수 있어요. 고친 뒤 복사하면 고친 내용이 복사됩니다.</p>
+      <div class="toolbar">
+        <button id="copyTitle">제목 복사</button>
+        <button id="copyBody" class="primary">본문 복사 (서식 포함)</button>
+        <button id="copyTags">해시태그 복사</button>
+        <button id="downloadTxt">텍스트 파일 저장</button>
+        <button id="btnBack2">← 다른 주제 고르기</button>
+      </div>
+      <div id="checklist" class="checklist hidden"></div>
+      <input id="postTitle" class="post-title">
+      <article id="postBody" class="post" contenteditable="true"></article>
+      <p id="postTags" class="tags"></p>
+      <div class="order">
+        <h3>스마트에디터 사진 업로드 순서</h3>
+        <p class="hint">본문의 [사진 N] 자리에 아래 순서대로 사진을 넣으세요.</p>
+        <div id="photoOrder" class="thumbs small"></div>
+      </div>
+    </section>
+  </main>
+
+  <div id="loading" class="loading hidden"><div class="spinner"></div><p id="loadingText">작업 중…</p></div>
+  <div id="toast" class="toast hidden"></div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
