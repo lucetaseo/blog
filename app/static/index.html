@@ -9,6 +9,10 @@
 <body>
   <header>
     <h1>네이버 블로그 글쓰기 도우미</h1>
+    <nav class="tabs">
+      <button data-tab="write" class="active">글 쓰기</button>
+      <button data-tab="archive">글 보관함</button>
+    </nav>
     <ol class="steps">
       <li data-step="1" class="active">사진 올리기</li>
       <li data-step="2">주제 선택</li>
@@ -17,6 +21,7 @@
   </header>
 
   <main>
+   <div id="writeView">
     <!-- 1단계: 사진 + 기본 정보 -->
     <section id="step1" class="card">
       <h2>1. 사진과 기본 정보</h2>
@@ -85,6 +90,14 @@
         <button id="sendToEditor" class="primary">네이버 에디터로 보내기 ↗</button>
         <span id="extStatus" class="hint"></span>
       </div>
+      <div class="save">
+        <label>발행 예정 시각 (비워 두면 임시저장)
+          <input type="datetime-local" id="scheduleAt">
+        </label>
+        <button id="savePost">보관함에 저장</button>
+        <button id="markDone" class="hidden">발행 완료로 표시</button>
+        <p class="hint">시각을 정해 두면 그때 알림이 옵니다. 미리 올려 두려면 네이버 발행 창의 "예약"에 같은 시각을 넣으세요.</p>
+      </div>
       <div id="checklist" class="checklist hidden"></div>
       <input id="postTitle" class="post-title">
       <article id="postBody" class="post" contenteditable="true"></article>
@@ -94,6 +107,17 @@
         <p class="hint">본문의 [사진 N] 자리에 아래 순서대로 사진을 넣으세요.</p>
         <div id="photoOrder" class="thumbs small"></div>
       </div>
+    </section>
+   </div>
+
+    <!-- 글 보관함 -->
+    <section id="archive" class="card hidden">
+      <div class="archive-head">
+        <h2>글 보관함</h2>
+        <button id="newPost" class="primary">+ 새 글 쓰기</button>
+      </div>
+      <p class="hint">발행 예정 시각이 되면 크롬 확장 프로그램이 알림을 띄웁니다. 발행한 글은 "발행 완료로 표시"를 눌러 주세요.</p>
+      <div id="archiveList"></div>
     </section>
   </main>
 

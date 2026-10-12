@@ -8,12 +8,17 @@ const state = {
   selected: -1,
   post: null,
   photoOrder: [],   // 글에 배치된 순서대로의 사진 번호
+  tags: [],
+  checklist: [],
+  postType: "",
+  savedId: null,    // 보관함에 저장된 글이면 그 id
   writeUrl: "https://blog.naver.com/GoBlogWrite.naver",
   extReady: false,  // 크롬 확장 프로그램 설치 여부
 };
 
 // ---------- 공통 ----------
 function showStep(n) {
+  showTab("write");
   [1, 2, 3].forEach((i) => $("step" + i).classList.toggle("hidden", i !== n));
   document.querySelectorAll(".steps li").forEach((li) => li.classList.toggle("active", Number(li.dataset.step) === n));
   window.scrollTo({ top: 0, behavior: "smooth" });
@@ -164,6 +169,10 @@ function paragraphs(text) {
 
 function renderPost() {
   const p = state.post;
+  state.savedId = null;
+  state.tags = p.hashtags.map((t) => t.replace(/^#/, "").replace(/\s+/g, ""));
+  state.checklist = p.checklist || [];
+  state.postType = state.topics[state.selected]?.post_type || "";
   $("postTitle").value = p.title;
 
   let html = paragraphs(p.intro);
@@ -181,21 +190,33 @@ function renderPost() {
   html += paragraphs(p.outro);
   $("postBody").innerHTML = html;
 
-  $("postTags").textContent = p.hashtags.map((t) => "#" + t.replace(/^#/, "").replace(/\s+/g, "")).join(" ");
+  state.photoOrder = order;
+  renderPostExtras();
+  $("scheduleAt").value = "";
+}
+
+// 태그, 확인 항목, 사진 업로드 순서, 보관함 상태 표시
+function renderPostExtras() {
+  $("postTags").textContent = state.tags.map((t) => "#" + t).join(" ");
 
   const cl = $("checklist");
-  if (p.checklist && p.checklist.length) {
-    cl.innerHTML = `<b>⚠ 올리기 전 확인하세요</b><ul>${p.checklist.map((c) => `<li>${esc(c)}</li>`).join("")}</ul>`;
+  if (state.checklist.length) {
+    cl.innerHTML = `<b>⚠ 올리기 전 확인하세요</b><ul>${state.checklist.map((c) => `<li>${esc(c)}</li>`).join("")}</ul>`;
     cl.classList.remove("hidden");
   } else {
     cl.classList.add("hidden");
   }
 
   // 글에 배치되지 않은 사진도 순서 목록 끝에 보여준다.
+  const order = state.photoOrder.filter((n) => state.files[n - 1]);
   state.files.forEach((_, i) => { if (!order.includes(i + 1)) order.push(i + 1); });
   state.photoOrder = order;
   $("photoOrder").innerHTML = order.map((n) =>
     `<div class="thumb"><img src="${state.files[n - 1].url}" alt=""><span class="num">사진 ${n}</span></div>`).join("");
+
+  $("savePost").textContent = state.savedId ? "변경 내용 저장" : "보관함에 저장";
+  $("markDone").classList.toggle("hidden", !state.savedId);
+  $("btnBack2").classList.toggle("hidden", !!state.savedId);
 }
 
 // 붙여넣기용: 사진은 [사진 N] 자리표시로 바꾼다 (스마트에디터에서는 사진을 직접 올려야 함).
@@ -298,7 +319,10 @@ $("sendToEditor").onclick = async () => {
     title: $("postTitle").value,
     html: b.html,
     text: b.text,
-    tags: state.post.hashtags.map((t) => t.replace(/^#/, "").replace(/\s+/g, "")),
+    tags: state.tags,
+    // 보관함에 저장된 글이면 에디터의 확장 패널에서 사진 묶음을 바로 받을 수 있다.
+    zipUrl: state.savedId ? `${location.origin}/api/posts/${state.savedId}/photos.zip` : null,
+    postId: state.savedId,
   };
   // 클립보드 쓰기는 이 창에 포커스가 있을 때만 되므로, 복사/전달을 먼저 하고 에디터를 연다.
   let ok = false;
@@ -312,7 +336,195 @@ $("sendToEditor").onclick = async () => {
   window.open(state.writeUrl, "_blank");
 };
 
+// ---------- 보관함 저장 ----------
+// 저장용 본문: 사진 <img>는 빼고 [사진 N] 자리(figure)만 남긴다. 불러올 때 다시 채운다.
+function bodyForStore() {
+  const clone = $("postBody").cloneNode(true);
+  clone.querySelectorAll("figure img").forEach((img) => img.remove());
+  return clone.innerHTML;
+}
+
+function hydrateFigures() {
+  $("postBody").querySelectorAll("figure[data-photo]").forEach((fig) => {
+    const f = state.files[Number(fig.dataset.photo) - 1];
+    if (!f) return;
+    const img = document.createElement("img");
+    img.src = f.url;
+    img.alt = "";
+    fig.prepend(img);
+  });
+}
+
+function toLocalInput(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function formatWhen(iso) {
+  return new Date(iso).toLocaleString("ko-KR", { month: "numeric", day: "numeric", weekday: "short", hour: "2-digit", minute: "2-digit" });
+}
+
+function postPayload() {
+  const b = bodyForCopy();
+  const when = $("scheduleAt").value;
+  return {
+    title: $("postTitle").value,
+    body_html: bodyForStore(),
+    paste_html: b.html,
+    paste_text: b.text,
+    tags: state.tags,
+    photo_order: state.photoOrder,
+    scheduled_at: when ? new Date(when).toISOString() : null,
+  };
+}
+
+$("savePost").onclick = async () => {
+  const data = postPayload();
+  if (data.scheduled_at && new Date(data.scheduled_at) < new Date() && !confirm("발행 예정 시각이 이미 지났어요. 그래도 저장할까요?")) return;
+  try {
+    loading(true, "저장하는 중…");
+    let saved;
+    if (state.savedId) {
+      saved = await api(`/api/posts/${state.savedId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...data, status: data.scheduled_at ? "scheduled" : "draft" }),
+      });
+    } else {
+      const fd = new FormData();
+      fd.append("data", JSON.stringify({ ...data, post_type: state.postType, checklist: state.checklist }));
+      state.files.forEach((f) => fd.append("photos", f.file, f.file.name));
+      saved = await api("/api/posts", { method: "POST", body: fd });
+      state.savedId = saved.id;
+      history.replaceState(null, "", `?post=${saved.id}`);
+    }
+    renderPostExtras();
+    toast(saved.status === "scheduled" ? `저장했어요. ${formatWhen(saved.scheduled_at)}에 알려 드릴게요.` : "보관함에 저장했어요.");
+  } catch (err) {
+    toast(err.message, true);
+  } finally {
+    loading(false);
+  }
+};
+
+$("markDone").onclick = async () => {
+  try {
+    await api(`/api/posts/${state.savedId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: "done" }),
+    });
+    toast("발행 완료로 표시했어요.");
+    openArchive();
+  } catch (err) {
+    toast(err.message, true);
+  }
+};
+
+// ---------- 보관함 목록 ----------
+function showTab(name) {
+  $("writeView").classList.toggle("hidden", name !== "write");
+  $("archive").classList.toggle("hidden", name !== "archive");
+  document.querySelectorAll(".tabs button").forEach((b) => b.classList.toggle("active", b.dataset.tab === name));
+  document.querySelector(".steps").classList.toggle("hidden", name !== "write");
+}
+
+function statusBadge(p) {
+  if (p.status === "done") return `<span class="badge done">발행 완료</span>`;
+  if (p.status === "scheduled") {
+    const late = new Date(p.scheduled_at) <= new Date();
+    return `<span class="badge ${late ? "late" : "sched"}">${late ? "⏰ 발행할 시간" : "예정"} · ${formatWhen(p.scheduled_at)}</span>`;
+  }
+  return `<span class="badge draft">임시저장</span>`;
+}
+
+async function openArchive() {
+  showTab("archive");
+  history.replaceState(null, "", location.pathname);
+  try {
+    const posts = await api("/api/posts");
+    const groups = [
+      ["발행 예정", posts.filter((p) => p.status === "scheduled")],
+      ["임시저장", posts.filter((p) => p.status === "draft")],
+      ["발행 완료", posts.filter((p) => p.status === "done")],
+    ];
+    $("archiveList").innerHTML = posts.length ? groups.filter(([, list]) => list.length).map(([name, list]) => `
+      <h3>${name} <small>${list.length}</small></h3>
+      ${list.map((p) => `
+        <div class="item" data-id="${p.id}">
+          <div class="info">
+            ${statusBadge(p)} ${p.post_type ? `<span class="type">${esc(p.post_type)}</span>` : ""}
+            <div class="title">${esc(p.title)}</div>
+            <div class="hint">사진 ${p.photo_count}장 · 수정 ${new Date(p.updated_at).toLocaleDateString("ko-KR")}</div>
+          </div>
+          <div class="actions"><button data-act="open" class="primary">열기</button><button data-act="del">삭제</button></div>
+        </div>`).join("")}`).join("")
+      : `<p class="hint">아직 저장한 글이 없어요. 글을 만든 뒤 "보관함에 저장"을 누르세요.</p>`;
+  } catch (err) {
+    toast(err.message, true);
+  }
+}
+
+$("archiveList").onclick = async (e) => {
+  const btn = e.target.closest("button[data-act]");
+  if (!btn) return;
+  const id = btn.closest(".item").dataset.id;
+  if (btn.dataset.act === "open") return openSaved(id);
+  if (btn.dataset.act === "del" && confirm("이 글과 사진을 보관함에서 지울까요?")) {
+    await api(`/api/posts/${id}`, { method: "DELETE" }).catch((err) => toast(err.message, true));
+    openArchive();
+  }
+};
+
+async function openSaved(id) {
+  try {
+    loading(true, "글을 불러오는 중…");
+    const p = await api(`/api/posts/${id}`);
+    state.files.forEach((f) => URL.revokeObjectURL(f.url));
+    state.files = await Promise.all(p.photos.map(async (ph, i) => {
+      const res = await fetch(`/api/posts/${id}/photos/${i + 1}`);
+      const file = new File([await res.blob()], ph.original, { type: res.headers.get("content-type") || "image/jpeg" });
+      return { file, url: URL.createObjectURL(file) };
+    }));
+    renderPreviews();
+    state.savedId = p.id;
+    state.tags = p.tags;
+    state.checklist = p.checklist;
+    state.postType = p.post_type;
+    state.photoOrder = p.photo_order;
+    $("postTitle").value = p.title;
+    $("postBody").innerHTML = p.body_html;
+    hydrateFigures();
+    $("scheduleAt").value = p.status === "done" ? "" : toLocalInput(p.scheduled_at);
+    renderPostExtras();
+    history.replaceState(null, "", `?post=${p.id}`);
+    showStep(3);
+  } catch (err) {
+    toast(err.message, true);
+  } finally {
+    loading(false);
+  }
+}
+
+document.querySelectorAll(".tabs button").forEach((b) => {
+  b.onclick = () => (b.dataset.tab === "archive" ? openArchive() : showStep(state.post || state.savedId ? 3 : 1));
+});
+$("newPost").onclick = () => {
+  state.post = null;
+  state.savedId = null;
+  state.files.forEach((f) => URL.revokeObjectURL(f.url));
+  state.files = [];
+  renderPreviews();
+  history.replaceState(null, "", location.pathname);
+  showStep(1);
+};
+
 // ---------- 초기값 ----------
+const params = new URLSearchParams(location.search);
+if (params.get("post")) openSaved(params.get("post"));
+else if (params.get("view") === "archive") openArchive();
 updateExtStatus();
 api("/api/defaults").then((d) => {
   if (d.write_url) state.writeUrl = d.write_url;

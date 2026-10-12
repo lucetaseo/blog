@@ -6,9 +6,9 @@
     if (e.source !== window || e.data?.source !== "nbh-app") return;
     if (e.data.type === "ping") reply("ready");
     if (e.data.type === "post") {
-      const { title, html, text, tags } = e.data.post || {};
+      const { title, html, text, tags, zipUrl, postId } = e.data.post || {};
       await chrome.storage.local.set({
-        pendingPost: { title, html, text, tags, savedAt: Date.now() },
+        pendingPost: { title, html, text, tags, zipUrl, postId, savedAt: Date.now() },
       });
       reply("saved");
     }

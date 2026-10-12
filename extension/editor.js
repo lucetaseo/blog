@@ -143,11 +143,13 @@
           <button class="b" data-a="body">본문 복사</button>
           <button class="b" data-a="tags">태그 복사</button>
         </div>
+        <button class="b zip" data-a="zip">📷 사진 순서대로 받기 (ZIP)</button>
         <div class="m"></div>
         <div class="s">사진은 본문의 [사진 N] 자리에 직접 넣고, 확인 후 발행하세요.<br>
-          <a href="#" data-a="done">이 글 다 썼어요 (패널 지우기)</a></div>
+          <a href="#" data-a="done">발행했어요 (패널 닫고 완료 표시)</a></div>
       </div>`;
     root.querySelector(".t").textContent = post.title;
+    if (!post.zipUrl) root.querySelector(".zip").remove();
     const msg = (text, ok = true) => {
       const m = root.querySelector(".m");
       m.textContent = text;
@@ -159,7 +161,13 @@
       if (!a) return;
       e.preventDefault();
       if (a === "close") return host.remove();
-      if (a === "done") { await chrome.storage.local.remove("pendingPost"); return host.remove(); }
+      if (a === "zip") return window.open(post.zipUrl, "_blank");
+      if (a === "done") {
+        // 보관함에 저장된 글이면 도우미에도 "발행 완료"로 표시한다.
+        if (post.postId) await chrome.runtime.sendMessage({ type: "markDone", postId: post.postId }).catch(() => {});
+        await chrome.storage.local.remove("pendingPost");
+        return host.remove();
+      }
       if (a === "title") return msg((await copyToClipboard(post.title)) ? "제목을 복사했어요. 제목 칸에 붙여넣으세요." : "복사 실패", true);
       if (a === "body") return msg((await copyToClipboard(post.text, post.html)) ? "본문을 복사했어요. 본문에 붙여넣으세요 (Ctrl+V)." : "복사 실패", true);
       if (a === "tags") {

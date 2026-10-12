@@ -1,5 +1,7 @@
 """사진 → 주제 추천 → 네이버 블로그 글 작성 웹앱 (사내용)."""
 
+import io
+import json
 import os
 import threading
 import time
@@ -8,13 +10,14 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 load_dotenv()
 
 from .images import ImageError, PreparedImage, prepare_image  # noqa: E402
+from .store import PostStore  # noqa: E402
 from .writer import BlogProfile, BlogWriter, WriterError  # noqa: E402
 
 MAX_PHOTOS = 20
@@ -26,6 +29,14 @@ app = FastAPI(title="네이버 블로그 글쓰기 도우미")
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 _writer: BlogWriter | None = None
+_store: PostStore | None = None
+
+
+def get_store() -> PostStore:
+    global _store
+    if _store is None:
+        _store = PostStore(Path(os.getenv("BLOG_DATA_DIR", "data")))
+    return _store
 
 
 def get_writer() -> BlogWriter:
@@ -144,6 +155,115 @@ def write_post(req: PostRequest):
     for section in post.get("sections", []):
         section["photos"] = [p for p in section.get("photos", []) if isinstance(p, int) and 1 <= p <= n]
     return post
+
+
+# ---------- 글 보관함 ----------
+
+def _read_upload(photo: UploadFile) -> bytes:
+    raw = photo.file.read(MAX_UPLOAD_BYTES + 1)
+    if len(raw) > MAX_UPLOAD_BYTES:
+        raise HTTPException(400, f"'{photo.filename}' 파일이 너무 큽니다 (최대 25MB).")
+    return raw
+
+
+def _require_post(post_id: str) -> dict:
+    post = get_store().get(post_id)
+    if post is None:
+        raise HTTPException(404, "글을 찾을 수 없습니다.")
+    return post
+
+
+@app.post("/api/posts")
+def create_post(data: str = Form(...), photos: list[UploadFile] = File(default=[])):
+    """data: 글 내용 JSON, photos: 원본 사진 (업로드 순서 = [사진 N] 번호)."""
+    try:
+        payload = json.loads(data)
+        for k in ("title", "body_html", "paste_html", "paste_text"):
+            if not isinstance(payload.get(k), str):
+                raise ValueError(f"'{k}' 항목이 없습니다.")
+        if len(photos) > MAX_PHOTOS:
+            raise ValueError(f"사진은 최대 {MAX_PHOTOS}장까지 저장할 수 있습니다.")
+        files = [(p.filename or "photo.jpg", _read_upload(p)) for p in photos]
+        return get_store().create(payload, files)
+    except (ValueError, json.JSONDecodeError) as e:
+        raise HTTPException(400, str(e)) from e
+
+
+class PostUpdate(BaseModel):
+    title: str | None = None
+    body_html: str | None = None
+    paste_html: str | None = None
+    paste_text: str | None = None
+    tags: list[str] | None = None
+    photo_order: list[int] | None = None
+    status: str | None = None
+    scheduled_at: str | None = None
+
+
+@app.put("/api/posts/{post_id}")
+def update_post(post_id: str, req: PostUpdate):
+    data = req.model_dump(exclude_unset=True)
+    try:
+        post = get_store().update(post_id, data)
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
+    if post is None:
+        raise HTTPException(404, "글을 찾을 수 없습니다.")
+    return post
+
+
+@app.get("/api/posts")
+def list_posts():
+    return get_store().list_all()
+
+
+@app.get("/api/posts/due")
+def due_posts():
+    """예정 시각이 지났는데 발행 완료 표시가 안 된 글 (크롬 확장 알림용)."""
+    return get_store().due()
+
+
+@app.get("/api/posts/{post_id}")
+def get_post(post_id: str):
+    return _require_post(post_id)
+
+
+@app.delete("/api/posts/{post_id}")
+def delete_post(post_id: str):
+    if not get_store().delete(post_id):
+        raise HTTPException(404, "글을 찾을 수 없습니다.")
+    return {"ok": True}
+
+
+@app.get("/api/posts/{post_id}/photos/{n}")
+def get_photo(post_id: str, n: int):
+    path = get_store().photo_path(post_id, n)
+    if path is None or not path.exists():
+        raise HTTPException(404, "사진을 찾을 수 없습니다.")
+    return FileResponse(path)
+
+
+@app.get("/api/posts/{post_id}/photos.zip")
+def download_photos(post_id: str):
+    """글에 배치된 순서대로 번호를 붙인 사진 묶음."""
+    import zipfile
+    from urllib.parse import quote
+
+    post = _require_post(post_id)
+    count = len(post["photos"])
+    order = [n for n in post["photo_order"] if isinstance(n, int) and 1 <= n <= count]
+    order += [n for n in range(1, count + 1) if n not in order]
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_STORED) as zf:
+        for i, n in enumerate(order, start=1):
+            path = get_store().photo_path(post_id, n)
+            zf.write(path, f"{i:02d}_사진{n}{path.suffix}")
+    return Response(
+        buf.getvalue(),
+        media_type="application/zip",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote('블로그사진.zip')}"},
+    )
 
 
 def run():

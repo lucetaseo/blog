@@ -1,5 +1,6 @@
 import io
 import json
+import zipfile
 from types import SimpleNamespace
 
 import pytest
@@ -7,7 +8,10 @@ from fastapi.testclient import TestClient
 from PIL import Image
 
 from app import main
+from datetime import datetime, timedelta, timezone
+
 from app.images import ImageError, prepare_image
+from app.store import PostStore
 from app.writer import BlogWriter
 
 TOPICS = {
@@ -63,9 +67,10 @@ def jpeg_bytes(size=(3000, 2000), mode="RGB"):
 
 
 @pytest.fixture
-def client(monkeypatch):
+def client(monkeypatch, tmp_path):
     fake = FakeClient()
     monkeypatch.setattr(main, "_writer", BlogWriter(client=fake))
+    monkeypatch.setattr(main, "_store", PostStore(tmp_path))
     return TestClient(main.app), fake
 
 
@@ -120,4 +125,57 @@ def test_post_with_unknown_session(client):
 def test_rejects_bad_upload(client):
     tc, _ = client
     r = tc.post("/api/topics", files=[("photos", ("x.txt", b"hello", "text/plain"))])
+    assert r.status_code == 400
+
+
+def _save(tc, **extra):
+    data = {"title": "제목", "body_html": '<p>본문</p><figure data-photo="2"></figure>',
+            "paste_html": "<p>본문</p><p>[사진 2]</p>", "paste_text": "본문\n\n[사진 2]",
+            "tags": ["카페"], "photo_order": [2, 1], "post_type": "정보성", **extra}
+    files = [("photos", ("a.jpg", b"AAA", "image/jpeg")), ("photos", ("b.png", b"BBB", "image/png"))]
+    r = tc.post("/api/posts", data={"data": json.dumps(data)}, files=files)
+    assert r.status_code == 200, r.text
+    return r.json()
+
+
+def test_archive_save_list_and_photos(client):
+    tc, _ = client
+    post = _save(tc)
+    assert post["status"] == "draft" and post["photo_count"] == 2
+
+    assert tc.get(f"/api/posts/{post['id']}/photos/2").content == b"BBB"
+    assert tc.get(f"/api/posts/{post['id']}/photos/3").status_code == 404
+
+    z = zipfile.ZipFile(io.BytesIO(tc.get(f"/api/posts/{post['id']}/photos.zip").content))
+    assert z.namelist() == ["01_사진2.png", "02_사진1.jpg"]
+
+    listed = tc.get("/api/posts").json()
+    assert [p["id"] for p in listed] == [post["id"]] and "body_html" not in listed[0]
+
+    assert tc.delete(f"/api/posts/{post['id']}").status_code == 200
+    assert tc.get(f"/api/posts/{post['id']}").status_code == 404
+
+
+def test_schedule_due_and_done(client):
+    tc, _ = client
+    past = (datetime.now(timezone.utc) - timedelta(minutes=5)).isoformat()
+    future = (datetime.now(timezone.utc) + timedelta(days=1)).isoformat()
+    late = _save(tc, scheduled_at=past)
+    later = _save(tc, scheduled_at=future)
+    assert late["status"] == later["status"] == "scheduled"
+
+    assert [p["id"] for p in tc.get("/api/posts/due").json()] == [late["id"]]
+
+    done = tc.put(f"/api/posts/{late['id']}", json={"status": "done"}).json()
+    assert done["status"] == "done" and done["scheduled_at"] == late["scheduled_at"]
+    assert tc.get("/api/posts/due").json() == []
+
+    # 예정 시각을 지우면 임시저장으로 돌아간다
+    assert tc.put(f"/api/posts/{later['id']}", json={"scheduled_at": None}).json()["status"] == "draft"
+
+
+def test_rejects_naive_schedule_time(client):
+    tc, _ = client
+    data = {"title": "t", "body_html": "", "paste_html": "", "paste_text": "", "scheduled_at": "2026-10-20T09:00"}
+    r = tc.post("/api/posts", data={"data": json.dumps(data)})
     assert r.status_code == 400
