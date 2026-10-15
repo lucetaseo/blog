@@ -49,9 +49,17 @@
 > 설치 후 같은 파일을 다시 실행하세요. 윈도우는 설치 첫 화면에서 **Add python.exe to PATH**를 체크하세요.
 
 ### 2. 설정 화면에서 AI 연결
-처음 열리면 **설정** 화면이 나옵니다.
-[Claude 콘솔](https://console.anthropic.com/settings/keys)에서 API 키를 만들어 붙여넣고 **저장하고 확인**을 누르면 끝입니다.
-키가 맞는지 바로 확인해 주고, 블로그명·업종·말투 기본값도 여기서 정합니다.
+처음 열리면 **설정** 화면이 나옵니다. 쓸 AI를 고르고 API 키를 붙여넣은 뒤 **저장하고 확인**을 누르면 끝입니다.
+
+| | 구글 제미나이 | Claude |
+|---|---|---|
+| 비용 | 무료 사용량 있음 (분당·하루 횟수 제한) | 쓴 만큼 충전 (글 1편 수백 원 수준) |
+| 키 받는 곳 | [Google AI Studio](https://aistudio.google.com/apikey) → API 키 만들기 | [Claude 콘솔](https://console.anthropic.com/settings/keys) → Create Key, 결제에서 크레딧 충전 |
+
+키가 맞는지 바로 확인해 주고(제미나이는 계정에서 쓸 수 있는 Flash 모델을 자동으로 고릅니다),
+블로그명·업종·말투 기본값도 여기서 정합니다. 두 키를 다 넣어 두면 설정 화면에서 언제든 바꿔 쓸 수 있습니다.
+
+> 제미나이 무료 사용 시 올린 내용이 구글 서비스 개선에 쓰일 수 있습니다. 민감한 정보는 메모에 넣지 마세요.
 
 > 설정(특히 API 키)은 **서버 PC에서만** 바꿀 수 있습니다. 다른 PC·휴대폰에서는 보기만 됩니다.
 
@@ -88,7 +96,9 @@ python -m app.main
 | 항목 | 설명 |
 |---|---|
 | `ANTHROPIC_API_KEY` | Claude API 키 (설정 화면 대신 지정할 때) |
-| `BLOG_MODEL` | 사용할 모델. 기본 `claude-opus-5-5` |
+| `BLOG_PROVIDER` | 쓸 AI (`claude` / `gemini`) |
+| `GEMINI_API_KEY`, `GEMINI_MODEL` | 제미나이 키와 모델 (모델은 비우면 자동 선택) |
+| `BLOG_MODEL` | Claude 모델. 기본 `claude-opus-5-5` |
 | `BLOG_NAME`, `BLOG_INDUSTRY`, `BLOG_TONE` | 화면 입력칸의 기본값 |
 | `BLOG_WRITE_URL` | "네이버 에디터로 보내기"가 여는 주소. 기본은 로그인한 계정의 글쓰기 화면 |
 | `HOST`, `PORT` | 서버 주소/포트. 기본 `0.0.0.0:8000` |
@@ -100,7 +110,8 @@ python -m app.main
 ```
 app/
   main.py      FastAPI 서버 (API + 화면 제공)
-  writer.py    Claude 호출 — 주제 추천 / 글 작성 프롬프트와 응답 형식(JSON 스키마)
+  writer.py    주제 추천 / 글 작성 프롬프트와 응답 형식(JSON 스키마), Claude 호출
+  gemini_writer.py  같은 프롬프트로 제미나이 호출
   images.py    사진 회전 보정·축소·JPEG 변환
   store.py     글 보관함 (SQLite + 사진 파일)
   settings.py  설정 화면 값 저장 (data/settings.json)

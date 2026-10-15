@@ -18,7 +18,7 @@ load_dotenv()
 
 from . import setup as setup_helpers  # noqa: E402
 from .images import ImageError, PreparedImage, prepare_image  # noqa: E402
-from .settings import Settings, mask_key  # noqa: E402
+from .settings import PROVIDERS, Settings, active_key, mask_key  # noqa: E402
 from .store import PostStore  # noqa: E402
 from .writer import BlogProfile, BlogWriter, WriterError  # noqa: E402
 
@@ -56,12 +56,18 @@ def get_store() -> PostStore:
 def get_writer() -> BlogWriter:
     global _writer
     if _writer is None:
-        import anthropic
-
-        key = get_settings().get("anthropic_api_key")
+        st = get_settings()
+        key = active_key(st)
         if not key:
             raise WriterError("API 키가 아직 설정되지 않았습니다. 상단 '설정' 탭에서 입력해 주세요.")
-        _writer = BlogWriter(client=anthropic.Anthropic(api_key=key))
+        if st.get("provider") == "gemini":
+            from .gemini_writer import GeminiWriter
+
+            _writer = GeminiWriter(api_key=key, model=st.get("gemini_model"))
+        else:
+            import anthropic
+
+            _writer = BlogWriter(client=anthropic.Anthropic(api_key=key))
     return _writer
 
 
@@ -108,8 +114,8 @@ def index():
 @app.get("/api/defaults")
 def defaults():
     return {
-        **{k: v for k, v in get_settings().all().items() if k != "anthropic_api_key"},
-        "configured": bool(get_settings().get("anthropic_api_key")),
+        **{k: v for k, v in get_settings().all().items() if not k.endswith("_api_key")},
+        "configured": bool(active_key(get_settings())),
     }
 
 
@@ -302,20 +308,22 @@ def _can_edit_settings(request: Request, password: str | None) -> bool:
 @app.get("/api/setup")
 def setup_status(request: Request, x_admin_password: str | None = Header(default=None)):
     st = get_settings()
-    key = st.get("anthropic_api_key")
     return {
-        "configured": bool(key),
-        "key_masked": mask_key(key),
-        "key_from_env": st.from_env("anthropic_api_key"),
+        "configured": bool(active_key(st)),
+        "claude_key": mask_key(st.get("anthropic_api_key")),
+        "gemini_key": mask_key(st.get("gemini_api_key")),
+        "key_from_env": st.from_env("anthropic_api_key") or st.from_env("gemini_api_key"),
         "can_edit": _can_edit_settings(request, x_admin_password),
         "needs_password": bool(os.getenv("BLOG_ADMIN_PASSWORD")),
-        **{k: v for k, v in st.all().items() if k != "anthropic_api_key"},
+        **{k: v for k, v in st.all().items() if not k.endswith("_api_key")},
         "lan_urls": setup_helpers.lan_urls(_port()),
     }
 
 
 class SetupRequest(BaseModel):
+    provider: str | None = None
     api_key: str | None = None
+    gemini_api_key: str | None = None
     blog_name: str | None = None
     industry: str | None = None
     tone: str | None = None
@@ -328,12 +336,23 @@ def save_setup(req: SetupRequest, request: Request, x_admin_password: str | None
     if not _can_edit_settings(request, x_admin_password):
         raise HTTPException(403, "설정은 도우미를 실행한 PC에서만 바꿀 수 있습니다.")
     values = req.model_dump(exclude_none=True)
+    if values.get("provider") and values["provider"] not in PROVIDERS:
+        raise HTTPException(400, "알 수 없는 AI 종류입니다.")
     key = values.pop("api_key", "").strip()
     if key:
         error = setup_helpers.check_api_key(key)
         if error:
             raise HTTPException(400, error)
         values["anthropic_api_key"] = key
+        values.setdefault("provider", "claude")
+    gkey = values.pop("gemini_api_key", "").strip()
+    if gkey:
+        error, model = setup_helpers.check_gemini_key(gkey, get_settings().get("gemini_model") or None)
+        if error:
+            raise HTTPException(400, error)
+        values["gemini_api_key"] = gkey
+        values["gemini_model"] = model
+        values.setdefault("provider", "gemini")
     if values.get("write_url") and not values["write_url"].startswith("https://"):
         raise HTTPException(400, "글쓰기 주소는 https:// 로 시작해야 합니다.")
     get_settings().update(values)

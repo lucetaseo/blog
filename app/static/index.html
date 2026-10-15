@@ -130,15 +130,27 @@
       <div class="setting-block">
         <h3>1. AI 연결 <span id="keyBadge" class="badge"></span></h3>
         <div id="keyEditor">
-          <p class="hint">
-            <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">Claude 콘솔</a>에서
-            로그인 → <b>Create Key</b> → 만들어진 키(<code>sk-ant-</code>로 시작)를 복사해 붙여넣으세요.
-            결제 수단 등록이 필요할 수 있습니다.
-          </p>
+          <div class="provider-pick">
+            <label class="pick"><input type="radio" name="provider" value="gemini">
+              <span><b>구글 제미나이</b><small>무료 사용량 있음 (하루 횟수 제한)</small></span></label>
+            <label class="pick"><input type="radio" name="provider" value="claude">
+              <span><b>Claude</b><small>유료 충전 · 글 품질 우선</small></span></label>
+          </div>
+          <ol class="howto" data-for="gemini">
+            <li><a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">Google AI Studio</a>에 구글 계정으로 로그인</li>
+            <li><b>API 키 만들기</b>(Create API key) → 만들어진 키(<code>AIza</code>로 시작) 복사</li>
+            <li>아래에 붙여넣고 <b>저장하고 확인</b></li>
+          </ol>
+          <ol class="howto hidden" data-for="claude">
+            <li><a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">Claude 콘솔</a>에 로그인 → <b>Create Key</b></li>
+            <li>만들어진 키(<code>sk-ant-</code>로 시작) 복사 → 아래에 붙여넣고 <b>저장하고 확인</b></li>
+            <li>콘솔의 <b>결제(Billing)</b>에서 크레딧 충전이 필요합니다.</li>
+          </ol>
           <div class="inline">
-            <input id="apiKey" type="password" placeholder="sk-ant-..." autocomplete="off">
+            <input id="apiKey" type="password" placeholder="API 키 붙여넣기" autocomplete="off">
             <button id="saveKey" class="primary">저장하고 확인</button>
           </div>
+          <p id="savedKeys" class="hint"></p>
         </div>
         <p id="keyLocked" class="hint hidden"></p>
         <label id="adminPwRow" class="hidden">관리자 비밀번호<input id="adminPw" type="password" autocomplete="off"></label>

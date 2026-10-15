@@ -279,3 +279,83 @@ def test_low_credit_error_is_explained_in_korean(client):
     r = tc.post("/api/topics", files=[("photos", ("1.png", jpeg_bytes(), "image/png"))])
     assert r.status_code == 502
     assert "크레딧" in r.json()["detail"]
+
+
+# ---------- 제미나이 ----------
+
+class FakeGeminiModels:
+    def __init__(self, payloads):
+        self.payloads = payloads
+        self.calls = []
+
+    def generate_content(self, model, contents, config):
+        self.calls.append({"model": model, "contents": contents, "config": config})
+        schema = config.response_json_schema
+        payload = self.payloads["topics" if "topics" in schema["properties"] else "post"]
+        return SimpleNamespace(text=json.dumps(payload), candidates=[SimpleNamespace(finish_reason="STOP")])
+
+
+def test_gemini_writer_flow(monkeypatch, tmp_path):
+    from app.gemini_writer import GeminiWriter
+
+    models = FakeGeminiModels({"topics": TOPICS, "post": POST})
+    monkeypatch.setattr(main, "_writer", GeminiWriter(client=SimpleNamespace(models=models), model="gemini-3.8-flash"))
+    monkeypatch.setattr(main, "_settings", Settings(tmp_path))
+    tc = TestClient(main.app)
+
+    r = tc.post("/api/topics", files=[("photos", ("1.png", jpeg_bytes(), "image/png"))], data={"post_type": "정보성"})
+    assert r.status_code == 200, r.text
+    call = models.calls[0]
+    assert call["model"] == "gemini-3.8-flash"
+    assert call["config"].response_mime_type == "application/json"
+    assert "additionalProperties" not in json.dumps(call["config"].response_json_schema)
+    kinds = [("inline_data" if p.inline_data else "text") for p in call["contents"]]
+    assert kinds == ["text", "inline_data", "text"]
+
+    r = tc.post("/api/post", json={"session_id": r.json()["session_id"], "topic": r.json()["topics"][0]})
+    assert r.status_code == 200 and r.json()["sections"][0]["photos"] == [1]
+
+
+def test_gemini_quota_error_is_explained(monkeypatch, tmp_path):
+    from google.genai import errors
+
+    from app.gemini_writer import GeminiWriter
+
+    def boom(**kwargs):
+        raise errors.ClientError(429, {"error": {"code": 429, "message": "quota", "status": "RESOURCE_EXHAUSTED"}})
+
+    client = SimpleNamespace(models=SimpleNamespace(generate_content=boom))
+    monkeypatch.setattr(main, "_writer", GeminiWriter(client=client))
+    monkeypatch.setattr(main, "_settings", Settings(tmp_path))
+    r = TestClient(main.app).post("/api/topics", files=[("photos", ("1.png", jpeg_bytes(), "image/png"))])
+    assert r.status_code == 502 and "한도" in r.json()["detail"]
+
+
+def test_pick_flash_model():
+    from app.gemini_writer import pick_flash_model
+
+    names = ["models/gemini-3.6-flash", "models/gemini-3.8-flash", "models/gemini-3.8-flash-lite",
+             "models/gemini-3.8-flash-image", "models/gemini-3.9-flash-preview", "models/gemini-3.8-pro"]
+    assert pick_flash_model(names) == "gemini-3.8-flash"
+    assert pick_flash_model([n for n in names if n != "models/gemini-3.8-flash"]) == "gemini-3.6-flash"
+    assert pick_flash_model(["models/gemini-3.8-flash-lite"]) == "gemini-3.8-flash-lite"
+    assert pick_flash_model(["models/gemini-3.8-pro"]) is None
+
+
+def test_setup_gemini_key_and_switch(setup_env, monkeypatch):
+    local, _, _ = setup_env
+    for name in ("GEMINI_API_KEY", "BLOG_PROVIDER", "GEMINI_MODEL"):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setattr(main.setup_helpers, "check_gemini_key",
+                        lambda k, preferred=None: (None, "gemini-3.8-flash") if k == "AIza-good" else ("틀린 키", None))
+
+    assert local.post("/api/setup", json={"provider": "gemini", "gemini_api_key": "AIza-bad"}).status_code == 400
+    st = local.post("/api/setup", json={"provider": "gemini", "gemini_api_key": "AIza-good"}).json()
+    assert st["configured"] and st["provider"] == "gemini" and st["gemini_model"] == "gemini-3.8-flash"
+    assert "AIza-good" not in json.dumps(st)
+
+    # Claude 키를 넣으면 Claude로, 키 없이 provider만 보내면 다시 제미나이로 바뀐다
+    assert local.post("/api/setup", json={"provider": "claude", "api_key": "sk-ant-good"}).json()["provider"] == "claude"
+    st = local.post("/api/setup", json={"provider": "gemini"}).json()
+    assert st["provider"] == "gemini" and st["configured"]
+    assert local.post("/api/setup", json={"provider": "openai"}).status_code == 400

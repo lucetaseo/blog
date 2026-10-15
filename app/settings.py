@@ -10,7 +10,10 @@ import threading
 from pathlib import Path
 
 DEFAULTS = {
+    "provider": "claude",  # claude | gemini
     "anthropic_api_key": "",
+    "gemini_api_key": "",
+    "gemini_model": "",
     "blog_name": "",
     "industry": "",
     "tone": "",
@@ -19,7 +22,10 @@ DEFAULTS = {
 
 # 설정 키 → 같은 의미의 환경변수
 ENV_NAMES = {
+    "provider": "BLOG_PROVIDER",
     "anthropic_api_key": "ANTHROPIC_API_KEY",
+    "gemini_api_key": "GEMINI_API_KEY",
+    "gemini_model": "GEMINI_MODEL",
     "blog_name": "BLOG_NAME",
     "industry": "BLOG_INDUSTRY",
     "tone": "BLOG_TONE",
@@ -69,3 +75,12 @@ class Settings:
 
 def mask_key(key: str) -> str:
     return f"{key[:10]}…{key[-4:]}" if len(key) > 16 else ("설정됨" if key else "")
+
+
+PROVIDERS = {"claude": "anthropic_api_key", "gemini": "gemini_api_key"}
+
+
+def active_key(settings: "Settings") -> str:
+    """지금 고른 AI의 API 키."""
+    provider = settings.get("provider")
+    return settings.get(PROVIDERS.get(provider, "anthropic_api_key"))

@@ -55,6 +55,12 @@ def check_api_key(key: str) -> str | None:
     return None
 
 
+def check_gemini_key(key: str, preferred: str | None = None) -> tuple[str | None, str | None]:
+    from .gemini_writer import DEFAULT_GEMINI_MODEL, check_gemini_key as _check
+
+    return _check(key, preferred or DEFAULT_GEMINI_MODEL)
+
+
 def qr_svg(url: str) -> bytes:
     import segno
 

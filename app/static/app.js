@@ -583,9 +583,29 @@ async function openSettings(firstRun = false) {
   }
 }
 
+const PROVIDER_NAMES = { claude: "Claude", gemini: "제미나이" };
+
+function selectedProvider() {
+  return document.querySelector("input[name=provider]:checked")?.value || "gemini";
+}
+
+function showProviderHelp() {
+  const p = selectedProvider();
+  document.querySelectorAll(".howto[data-for]").forEach((el) => el.classList.toggle("hidden", el.dataset.for !== p));
+  $("apiKey").placeholder = p === "gemini" ? "AIza... (제미나이 API 키)" : "sk-ant-... (Claude API 키)";
+  const saved = p === "gemini" ? settingsState.gemini_key : settingsState.claude_key;
+  $("saveKey").textContent = !saved || $("apiKey").value ? "저장하고 확인" : `${PROVIDER_NAMES[p]}로 바꾸기`;
+}
+
+let settingsState = {};
+document.querySelectorAll("input[name=provider]").forEach((r) => (r.onchange = showProviderHelp));
+$("apiKey").addEventListener("input", showProviderHelp);
+
 function renderSettings(st) {
+  settingsState = st;
   const badge = $("keyBadge");
-  badge.textContent = st.configured ? `연결됨 · ${st.key_masked}` : "연결 안 됨";
+  const model = st.provider === "gemini" && st.gemini_model ? ` (${st.gemini_model})` : "";
+  badge.textContent = st.configured ? `연결됨 · ${PROVIDER_NAMES[st.provider] || st.provider}${model}` : "연결 안 됨";
   badge.className = "badge " + (st.configured ? "ok" : "no");
 
   const locked = !st.can_edit && !st.needs_password;
@@ -596,6 +616,14 @@ function renderSettings(st) {
     ? "API 키가 서버의 .env 파일로 지정되어 있습니다. 바꾸려면 .env를 수정하세요."
     : "AI 연결과 기본 정보는 도우미를 실행한 PC에서만 바꿀 수 있어요. (그 PC에서 http://localhost:8000 접속)";
   $("saveProfile").disabled = locked;
+
+  // 처음이면 무료로 시작할 수 있는 제미나이를 기본으로 고른다.
+  const current = st.configured ? st.provider : (st.claude_key && !st.gemini_key ? "claude" : "gemini");
+  const radio = document.querySelector(`input[name=provider][value=${current}]`);
+  if (radio) radio.checked = true;
+  const saved = [st.gemini_key && "제미나이", st.claude_key && "Claude"].filter(Boolean);
+  $("savedKeys").textContent = saved.length ? `저장된 키: ${saved.join(", ")} — 키가 저장된 AI는 키 입력 없이 골라서 바꿀 수 있어요.` : "";
+  showProviderHelp();
 
   for (const k of ["blog_name", "industry", "tone", "write_url"]) $("set_" + k).value = st[k] || "";
 
@@ -632,9 +660,15 @@ async function saveSettings(body, okMsg) {
 }
 
 $("saveKey").onclick = async () => {
+  const provider = selectedProvider();
   const key = $("apiKey").value.trim();
-  if (!key) return toast("API 키를 붙여넣어 주세요.", true);
-  const st = await saveSettings({ api_key: key }, "AI 연결 완료! 이제 글을 쓸 수 있어요.");
+  const saved = provider === "gemini" ? settingsState.gemini_key : settingsState.claude_key;
+  if (!key && !saved) return toast("API 키를 붙여넣어 주세요.", true);
+  if (key && provider === "gemini" && key.startsWith("sk-ant-")) return toast("Claude 키예요. 위에서 Claude를 고르고 저장하세요.", true);
+  if (key && provider === "claude" && key.startsWith("AIza")) return toast("제미나이 키예요. 위에서 제미나이를 고르고 저장하세요.", true);
+  const body = { provider };
+  if (key) body[provider === "gemini" ? "gemini_api_key" : "api_key"] = key;
+  const st = await saveSettings(body, `${PROVIDER_NAMES[provider]} 연결 완료! 이제 글을 쓸 수 있어요.`);
   if (st) {
     $("apiKey").value = "";
     if (!$("welcome").classList.contains("hidden")) setTimeout(() => showStep(1), 1200);

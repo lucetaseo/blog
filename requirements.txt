@@ -5,3 +5,4 @@ python-multipart>=0.0.9
 pillow>=11.0
 python-dotenv>=1.0
 segno>=1.6
+google-genai>=1.0
