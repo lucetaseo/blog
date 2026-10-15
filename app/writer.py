@@ -194,10 +194,17 @@ class BlogWriter:
             ) as stream:
                 response = stream.get_final_message()
         except anthropic.AuthenticationError as e:
-            raise WriterError("Claude API 키가 올바르지 않습니다. .env의 ANTHROPIC_API_KEY를 확인하세요.") from e
+            raise WriterError("Claude API 키가 올바르지 않습니다. '설정' 탭에서 키를 다시 넣어 주세요.") from e
         except anthropic.RateLimitError as e:
             raise WriterError("요청이 많아 잠시 제한되었습니다. 1분 뒤 다시 시도하세요.") from e
         except anthropic.APIStatusError as e:
+            if "credit balance" in str(e.message).lower():
+                raise WriterError(
+                    "Claude 계정에 크레딧(충전 금액)이 없습니다. console.anthropic.com → 설정 → 결제(Plans & Billing)에서 "
+                    "크레딧을 충전한 뒤 다시 시도하세요. API 키는 다시 넣지 않아도 됩니다."
+                ) from e
+            if e.status_code == 529 or e.status_code >= 500:
+                raise WriterError("Claude 서버가 잠시 혼잡합니다. 잠시 뒤 다시 시도하세요.") from e
             raise WriterError(f"Claude API 오류 ({e.status_code}): {e.message}") from e
         except anthropic.APIConnectionError as e:
             raise WriterError("Claude API에 연결할 수 없습니다. 네트워크를 확인하세요.") from e

@@ -259,3 +259,23 @@ def test_qr_only_for_own_addresses(setup_env, monkeypatch):
     monkeypatch.setattr(main.setup_helpers, "lan_urls", lambda port: ["http://192.168.0.10:8000"])
     assert local.get("/api/setup/qr.svg", params={"url": "http://192.168.0.10:8000"}).headers["content-type"].startswith("image/svg")
     assert local.get("/api/setup/qr.svg", params={"url": "https://evil.example"}).status_code == 400
+
+
+def test_low_credit_error_is_explained_in_korean(client):
+    import anthropic
+    import httpx
+
+    tc, fake = client
+    req = httpx.Request("POST", "https://api.anthropic.com/v1/messages")
+    err = anthropic.BadRequestError(
+        "Your credit balance is too low to access the Anthropic API.",
+        response=httpx.Response(400, request=req), body=None,
+    )
+
+    def boom(**kwargs):
+        raise err
+
+    fake.beta.messages.stream = boom
+    r = tc.post("/api/topics", files=[("photos", ("1.png", jpeg_bytes(), "image/png"))])
+    assert r.status_code == 502
+    assert "크레딧" in r.json()["detail"]
