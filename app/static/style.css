@@ -128,3 +128,4 @@ a.btn small { color: var(--muted); margin-left: 4px; }
 .pick input { width: auto; }
 .pick span { display: flex; flex-direction: column; }
 .pick small { color: var(--muted); }
+#loadingText { white-space: pre-line; text-align: center; }

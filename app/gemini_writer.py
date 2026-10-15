@@ -48,6 +48,7 @@ class GeminiWriter(BlogWriter):
             client = genai.Client(api_key=api_key)
         self.client = client
         self.model = model or DEFAULT_GEMINI_MODEL
+        self.fast_thinking = True
 
     @staticmethod
     def _parts(content: list[dict]):
@@ -65,17 +66,29 @@ class GeminiWriter(BlogWriter):
     def _call_json(self, content: list[dict], schema: dict, effort: str) -> dict:
         from google.genai import errors, types
 
-        try:
-            response = self.client.models.generate_content(
-                model=self.model,
-                contents=self._parts(content),
-                config=types.GenerateContentConfig(
-                    system_instruction=SYSTEM_PROMPT,
-                    response_mime_type="application/json",
-                    response_json_schema=_strip_unsupported(schema),
-                    max_output_tokens=32000,
-                ),
+        def config(thinking: bool):
+            return types.GenerateContentConfig(
+                system_instruction=SYSTEM_PROMPT,
+                response_mime_type="application/json",
+                response_json_schema=_strip_unsupported(schema),
+                max_output_tokens=32000,
+                # 생각(추론)을 짧게 해서 응답을 빠르게 한다. 블로그 글은 깊은 추론이 필요 없다.
+                thinking_config=types.ThinkingConfig(thinking_level=types.ThinkingLevel.LOW) if thinking else None,
             )
+
+        try:
+            try:
+                response = self.client.models.generate_content(
+                    model=self.model, contents=self._parts(content), config=config(self.fast_thinking)
+                )
+            except errors.ClientError as e:
+                # 생각 수준 설정을 받지 않는 모델이면 설정 없이 다시 보낸다.
+                if getattr(e, "code", None) != 400 or "thinking" not in str(e).lower() or not self.fast_thinking:
+                    raise
+                self.fast_thinking = False
+                response = self.client.models.generate_content(
+                    model=self.model, contents=self._parts(content), config=config(False)
+                )
         except errors.ClientError as e:
             raise WriterError(_client_error_message(e, self.model)) from e
         except errors.ServerError as e:

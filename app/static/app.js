@@ -24,9 +24,21 @@ function showStep(n) {
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
+// 오래 걸리는 AI 작업 중에는 경과 시간을 보여 줘서 멈춘 게 아니라는 걸 알 수 있게 한다.
+let loadingTimer;
 function loading(on, text = "작업 중…") {
-  $("loadingText").textContent = text;
+  clearInterval(loadingTimer);
   $("loading").classList.toggle("hidden", !on);
+  if (!on) return;
+  const started = Date.now();
+  const tick = () => {
+    const sec = Math.round((Date.now() - started) / 1000);
+    let msg = sec >= 3 ? `${text}  ${sec}초` : text;
+    if (sec >= 60) msg += "\n사진이 많거나 AI 서버가 바쁘면 조금 더 걸릴 수 있어요.";
+    $("loadingText").textContent = msg;
+  };
+  tick();
+  loadingTimer = setInterval(tick, 1000);
 }
 
 let toastTimer;
@@ -103,7 +115,7 @@ $("btnTopics").onclick = async () => {
   state.files.forEach((f) => fd.append("photos", f.file, f.file.name));
   for (const k of ["blog_name", "industry", "tone", "keywords", "memo", "post_type"]) fd.append(k, $(k).value);
   try {
-    loading(true, "사진을 살펴보고 주제를 고르는 중… (30초~1분)");
+    loading(true, "사진을 살펴보고 주제를 고르는 중…");
     const data = await api("/api/topics", { method: "POST", body: fd });
     state.sessionId = data.session_id;
     state.topics = data.topics;
@@ -146,7 +158,7 @@ $("btnBack1").onclick = () => showStep(1);
 $("btnPost").onclick = async () => {
   if (state.selected < 0) return;
   try {
-    loading(true, "블로그 글을 쓰는 중… (1~2분)");
+    loading(true, "블로그 글을 쓰는 중…");
     state.post = await api("/api/post", {
       method: "POST",
       headers: { "Content-Type": "application/json" },

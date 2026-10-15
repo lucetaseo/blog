@@ -251,7 +251,7 @@ class BlogWriter:
                 "가장 추천하는 주제를 첫 번째에 두세요."
             ),
         })
-        return self._call_json(content, TOPICS_SCHEMA, effort="medium")
+        return self._call_json(content, TOPICS_SCHEMA, effort="low")
 
     def write_post(
         self,
@@ -281,4 +281,4 @@ class BlogWriter:
                 "본문에서 해당 사진 내용을 자연스럽게 설명해 주세요."
             ),
         })
-        return self._call_json(content, POST_SCHEMA, effort="high")
+        return self._call_json(content, POST_SCHEMA, effort="medium")

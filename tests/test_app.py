@@ -359,3 +359,24 @@ def test_setup_gemini_key_and_switch(setup_env, monkeypatch):
     st = local.post("/api/setup", json={"provider": "gemini"}).json()
     assert st["provider"] == "gemini" and st["configured"]
     assert local.post("/api/setup", json={"provider": "openai"}).status_code == 400
+
+
+def test_gemini_uses_low_thinking_and_falls_back(monkeypatch):
+    from google.genai import errors
+
+    from app.gemini_writer import GeminiWriter
+
+    seen = []
+
+    def gen(model, contents, config):
+        seen.append(config.thinking_config)
+        if config.thinking_config is not None:
+            raise errors.ClientError(400, {"error": {"code": 400, "message": "thinking_level is not supported", "status": "INVALID_ARGUMENT"}})
+        return SimpleNamespace(text=json.dumps(TOPICS), candidates=[SimpleNamespace(finish_reason="STOP")])
+
+    w = GeminiWriter(client=SimpleNamespace(models=SimpleNamespace(generate_content=gen)))
+    assert w._call_json([{"type": "text", "text": "hi"}], {"type": "object", "properties": {"topics": {}}}, "low") == TOPICS
+    assert seen[0].thinking_level.name == "LOW" and seen[1] is None
+    # 한 번 실패한 뒤로는 바로 설정 없이 보낸다
+    w._call_json([{"type": "text", "text": "hi"}], {"type": "object", "properties": {"topics": {}}}, "low")
+    assert seen[2] is None
